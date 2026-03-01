@@ -1,12 +1,27 @@
-import React, { useEffect } from 'react';
-import { Search, BookOpen } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Search, BookOpen, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { storageService } from '../services/storage';
 import { CartFloatingPanel } from '../components/CartFloatingPanel';
+import { supabase } from '../lib/supabase';
 
 const SearchPage: React.FC = () => {
   const navigate = useNavigate();
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
   const { 
     searchQuery, 
     setSearchQuery, 
@@ -107,6 +122,15 @@ const SearchPage: React.FC = () => {
       >
         <BookOpen className="w-3 h-3" />
         Manual
+      </button>
+
+      {/* My Zone Button (or Login) */}
+      <button 
+        onClick={() => user ? navigate('/my-zone') : navigate('/login')}
+        className="absolute top-2 right-4 text-[10px] text-blue-600 flex items-center gap-1 hover:text-blue-800 font-medium"
+      >
+        <User className="w-3 h-3" />
+        {user ? 'My Zone' : 'Login'}
       </button>
 
       {/* Floating Panel (Panel 5) */}

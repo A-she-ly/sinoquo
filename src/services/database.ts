@@ -175,5 +175,35 @@ export const databaseService = {
     }
 
     return undefined;
+  },
+
+  async logQuotationAction(actionType: string, cart: any[], totalAmount: number, itemCount: number) {
+    if (!isSupabaseConfigured()) return;
+
+    try {
+      const { error } = await supabase
+        .from('quotation_logs')
+        .insert([{
+           action_type: actionType,
+           total_amount: totalAmount,
+           currency: 'USD',
+           item_count: itemCount,
+           content_snapshot: cart, // Supabase handles JSON automatically if column is JSONB
+           client_info: {
+             userAgent: navigator.userAgent,
+             timestamp: new Date().toISOString(),
+             platform: navigator.platform,
+             language: navigator.language
+           }
+        }]);
+
+      if (error) {
+        console.error('Failed to log quotation action:', error);
+      } else {
+        console.log('Quotation action logged successfully:', actionType);
+      }
+    } catch (err) {
+      console.error('Error logging quotation action:', err);
+    }
   }
 };

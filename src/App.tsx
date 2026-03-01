@@ -5,6 +5,8 @@ import ProductDetailsPage from './pages/ProductDetailsPage';
 import QuotationPage from './pages/QuotationPage';
 import SupplierPage from './pages/SupplierPage';
 import ManualPage from './pages/ManualPage';
+import LoginPage from './pages/LoginPage';
+import MyZonePage from './pages/MyZonePage';
 
 function App() {
   return (
@@ -12,6 +14,8 @@ function App() {
       <div className="min-h-screen bg-gray-50 text-gray-900 font-sans">
         <Routes>
           <Route path="/" element={<SearchPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/my-zone" element={<MyZonePage />} />
           <Route path="/details/:id" element={<ProductDetailsPage />} />
           <Route path="/quotation" element={<QuotationPage />} />
           <Route path="/suppliers" element={<SupplierPage />} />

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useStore } from '../store/useStore';
+import { databaseService } from '../services/database';
 import { Plus, Search, X, Download, FileText, Trash2, GripVertical } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { CartFloatingPanel } from '../components/CartFloatingPanel';
@@ -186,7 +187,7 @@ const SortableItem = ({ item, index, navigate, hoveredProduct, setHoveredProduct
 
 const QuotationPage: React.FC = () => {
   const navigate = useNavigate();
-  const { cart, reorderCart, margin, exchangeRate, isQuoteStarted, setQuoteStarted, clearCart } = useStore();
+  const { cart, reorderCart, margin, exchangeRate, isQuoteStarted, setQuoteStarted, clearCart, addCustomItem } = useStore();
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [hoveredProduct, setHoveredProduct] = useState<any>(null);
@@ -293,10 +294,13 @@ const QuotationPage: React.FC = () => {
     
     const totalQuantity = cart.reduce((sum, item) => sum + item.quantity, 0);
 
+    // Log Action
+    databaseService.logQuotationAction('EXPORT_PDF', cart, totalAmount, totalQuantity);
+
     // 4. Add Table
     autoTable(doc, {
       startY: startY || 50,
-      head: [['No.', 'Items & Descriptions', 'Quantity (pc)', 'Unit price (usd/pc)', 'Sub amount (usd)']],
+      head: [['No.', 'Items & Descriptions', 'Quantity (pc)', 'Unit price (USD/pc)', 'Sub amount (USD)']],
       body: [
         ...tableBody,
         [{ content: 'Total:', colSpan: 2, styles: { fontStyle: 'bold' } }, totalQuantity, '', totalAmount]
@@ -377,8 +381,8 @@ const QuotationPage: React.FC = () => {
         'No.': index + 1,
         'Items & Descriptions': item.custom_description || item.specs || item.name,
         'Quantity (pc)': item.quantity,
-        'Unit price (usd/pc)': unitPrice,
-        'Sub amount (usd)': subtotal
+        'Unit price (USD/pc)': unitPrice,
+        'Sub amount (USD)': subtotal
       };
     });
 
@@ -391,12 +395,15 @@ const QuotationPage: React.FC = () => {
     }, 0);
     const totalQuantity = cart.reduce((sum, item) => sum + item.quantity, 0);
 
+    // Log Action
+    databaseService.logQuotationAction('EXPORT_EXCEL', cart, totalAmount, totalQuantity);
+
     data.push({
       'No.': 'Total:',
       'Items & Descriptions': '',
       'Quantity (pc)': totalQuantity,
-      'Unit price (usd/pc)': 0, // Placeholder
-      'Sub amount (usd)': totalAmount
+      'Unit price (USD/pc)': 0, // Placeholder
+      'Sub amount (USD)': totalAmount
     } as any);
 
     const worksheet = XLSX.utils.json_to_sheet(data);
@@ -447,13 +454,21 @@ const QuotationPage: React.FC = () => {
         </SortableContext>
       </DndContext>
 
-      {/* Clear Button - Compactly below the list */}
-      <div className="flex justify-start mt-2">
+      {/* Action Buttons: Clear & Add Custom */}
+      <div className="flex justify-between items-center mt-2">
         <button
           onClick={() => setShowClearConfirm(true)}
           className="text-red-500 border border-red-500 hover:bg-red-50 px-3 py-1 rounded text-xs font-medium transition-colors"
         >
           Clear
+        </button>
+
+        <button
+          onClick={addCustomItem}
+          className="flex items-center gap-1 text-blue-600 border border-blue-600 hover:bg-blue-50 px-3 py-1 rounded text-xs font-medium transition-colors"
+        >
+          <Plus className="w-3 h-3" />
+          Add Custom Row
         </button>
       </div>
 
@@ -508,8 +523,8 @@ const QuotationPage: React.FC = () => {
                     {/* Items & Descriptions Sub-header */}
                     <th className="border-r border-black p-2 text-center font-normal">Rock drilling tools</th>
                     <th className="border-r border-black p-2 text-center font-normal">(pc)</th>
-                    <th className="border-r border-black p-2 text-center font-normal">(usd/pc)</th>
-                    <th className="p-2 text-center font-normal">(usd)</th>
+                    <th className="border-r border-black p-2 text-center font-normal">(USD/pc)</th>
+                    <th className="p-2 text-center font-normal">(USD)</th>
                   </tr>
                 </thead>
                 <tbody>

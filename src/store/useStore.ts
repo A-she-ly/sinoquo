@@ -33,6 +33,7 @@ interface AppState {
   updateCartItemDescription: (productId: string, description: string) => void;
   reorderCart: (newOrder: CartItem[]) => void;
   clearCart: () => void;
+  addCustomItem: () => void;
 
   // Quotation Settings
   margin: number;
@@ -163,11 +164,11 @@ export const useStore = create<AppState>()(
         if (existing) {
           set({
             cart: cart.map(item => 
-              item.id === product.id ? { ...item, quantity: item.quantity + 1, costItem: costItem || item.costItem } : item
+              item.id === product.id ? { ...item, quantity: item.quantity + ((product as any).quantity || 1), costItem: costItem || item.costItem } : item
             )
           });
         } else {
-          set({ cart: [...cart, { ...product, quantity: 1, costItem }] });
+          set({ cart: [...cart, { ...product, quantity: (product as any).quantity || 1, costItem }] });
         }
       },
       removeFromCart: (productId) => {
@@ -218,6 +219,22 @@ export const useStore = create<AppState>()(
       },
       reorderCart: (newOrder) => set({ cart: newOrder }),
       clearCart: () => set({ cart: [] }),
+      addCustomItem: () => {
+        const { cart } = get();
+        const id = `custom-${Date.now()}`;
+        const newItem: CartItem = {
+          id,
+          name: 'Extra Item / Service Fee',
+          specs: '',
+          category: 'Custom',
+          quantity: 1,
+          cost_cny: 0,
+          guide_price_usd: 0,
+          custom_price: 0,
+          custom_description: 'Type details here...'
+        };
+        set({ cart: [...cart, newItem] });
+      },
 
       margin: 0.2, // Default 20%
       exchangeRate: 7.0, // Default USD/CNY
