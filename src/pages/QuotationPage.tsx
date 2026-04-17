@@ -26,9 +26,10 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { supabase } from '../lib/supabase';
 
 // Sortable Item Component
-const SortableItem = ({ item, index, navigate, hoveredProduct, setHoveredProduct }: any) => {
+const SortableItem = ({ item, index, navigate, hoveredProduct, setHoveredProduct, user }: any) => {
   const {
     attributes,
     listeners,
@@ -38,7 +39,7 @@ const SortableItem = ({ item, index, navigate, hoveredProduct, setHoveredProduct
     isDragging,
   } = useSortable({ id: item.id });
 
-  const { updateQuantity, updateCartItemPrice, updateCartItemDescription, removeFromCart, margin, exchangeRate } = useStore();
+  const { updateQuantity, updateCartItemPrice, updateCartItemDescription, removeFromCart, margin, exchangeRate, currency } = useStore();
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -49,9 +50,16 @@ const SortableItem = ({ item, index, navigate, hoveredProduct, setHoveredProduct
   };
 
   const cost = item.costItem?.cost_price || item.cost_cny || 0;
-  const calculatedPrice = item.guide_price_usd || Math.round((cost * (1 + margin)) / exchangeRate);
+  // If currency is USD and guide price exists, use it. Otherwise, calculate using margin as multiplier
+  const calculatedPrice = (currency === 'USD' && item.guide_price_usd) 
+      ? item.guide_price_usd 
+      : Math.round((cost * margin) / exchangeRate);
+      
+  // For UI display, we use custom_price if it was manually set or recalculated by the store
   const unitPrice = item.custom_price ?? calculatedPrice;
   const subtotal = unitPrice * item.quantity;
+  
+  const currencySymbol = currency === 'EUR' ? '€' : currency === 'AUD' ? 'A$' : currency === 'CNY' ? '¥' : '$';
 
   return (
     <div ref={setNodeRef} style={style} className="border-b border-gray-200 py-2 last:border-0 relative hover:bg-gray-50 transition-colors bg-white">
@@ -79,7 +87,7 @@ const SortableItem = ({ item, index, navigate, hoveredProduct, setHoveredProduct
               onChange={(e) => updateCartItemDescription(item.id, e.target.value)}
             />
           </div>
-          {unitPrice < (cost / exchangeRate) && (
+          {user && unitPrice < (cost / exchangeRate) && (
             <div className="text-red-500 text-[10px] mt-0.5">
               ⚠️ 低于成本价
             </div>
@@ -90,9 +98,12 @@ const SortableItem = ({ item, index, navigate, hoveredProduct, setHoveredProduct
         <div className="flex flex-col gap-1 shrink-0 items-end flex-1 max-w-[140px]">
           {/* Row 1: Cost & Price */}
           <div className="flex items-center gap-2 justify-end w-full">
-            {/* Cost (Small & Gray) */}
+            {/* Cost / Code / Details (Small & Gray) */}
             <div className="text-[10px] text-gray-400 flex flex-col items-end leading-none">
-              <span>¥{cost}</span>
+              <span className="bg-gray-100 px-1 rounded text-gray-600 font-mono" title="Product Code">
+                {item.id}
+              </span>
+              {user && <span>¥{cost}</span>}
               {item.details && (
               <div className="relative">
                 <button 
@@ -127,7 +138,7 @@ const SortableItem = ({ item, index, navigate, hoveredProduct, setHoveredProduct
 
             {/* Unit Price Input */}
             <div className="flex items-center border border-black h-7 w-20 bg-white">
-              <span className="pl-1 text-xs font-bold text-black">$</span>
+              <span className="pl-1 text-xs font-bold text-black">{currencySymbol}</span>
               <input
                 type="number"
                 className={`w-full text-sm font-bold focus:outline-none text-center ${unitPrice < (cost / exchangeRate) ? 'text-red-600' : 'text-black'}`}
@@ -160,7 +171,7 @@ const SortableItem = ({ item, index, navigate, hoveredProduct, setHoveredProduct
           
           {/* Row 3: Subtotal */}
           <div className="w-full text-right">
-             <div className="text-sm font-bold text-black">${subtotal}</div>
+             <div className="text-sm font-bold text-black">{currencySymbol}{subtotal}</div>
           </div>
         </div>
 
@@ -187,10 +198,23 @@ const SortableItem = ({ item, index, navigate, hoveredProduct, setHoveredProduct
 
 const QuotationPage: React.FC = () => {
   const navigate = useNavigate();
-  const { cart, reorderCart, margin, exchangeRate, isQuoteStarted, setQuoteStarted, clearCart, addCustomItem } = useStore();
+  const { cart, reorderCart, margin, exchangeRate, currency, setMargin, setExchangeRate, setCurrency, isQuoteStarted, setQuoteStarted, clearCart, addCustomItem } = useStore();
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [hoveredProduct, setHoveredProduct] = useState<any>(null);
+  const [user, setUser] = useState<any>(null);
+
+  React.useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -271,7 +295,9 @@ const QuotationPage: React.FC = () => {
     // 3. Prepare Table Data
     const tableBody = cart.map((item, index) => {
       const cost = item.costItem?.cost_price || item.cost_cny || 0;
-      const calculatedPrice = item.guide_price_usd || Math.round((cost * (1 + margin)) / exchangeRate);
+      const calculatedPrice = (currency === 'USD' && item.guide_price_usd) 
+          ? item.guide_price_usd 
+          : Number(((cost * margin) / exchangeRate).toFixed(2));
       const unitPrice = item.custom_price ?? calculatedPrice;
       const subtotal = unitPrice * item.quantity;
       
@@ -284,10 +310,12 @@ const QuotationPage: React.FC = () => {
       ];
     });
 
-    // Calculate Total
+    // Calculate total amount
     const totalAmount = cart.reduce((sum, item) => {
       const cost = item.costItem?.cost_price || item.cost_cny || 0;
-      const calculatedPrice = item.guide_price_usd || Math.round((cost * (1 + margin)) / exchangeRate);
+      const calculatedPrice = (currency === 'USD' && item.guide_price_usd) 
+          ? item.guide_price_usd 
+          : Number(((cost * margin) / exchangeRate).toFixed(2));
       const unitPrice = item.custom_price ?? calculatedPrice;
       return sum + (unitPrice * item.quantity);
     }, 0);
@@ -300,7 +328,7 @@ const QuotationPage: React.FC = () => {
     // 4. Add Table
     autoTable(doc, {
       startY: startY || 50,
-      head: [['No.', 'Items & Descriptions', 'Quantity (pc)', 'Unit price (USD/pc)', 'Sub amount (USD)']],
+      head: [['No.', 'Items & Descriptions', 'Quantity (pc)', `Unit price (${currency}/pc)`, `Sub amount (${currency})`]],
       body: [
         ...tableBody,
         [{ content: 'Total:', colSpan: 2, styles: { fontStyle: 'bold' } }, totalQuantity, '', totalAmount]
@@ -369,27 +397,36 @@ const QuotationPage: React.FC = () => {
   };
 
   // Export to Excel
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     // Prepare Data
+    const symbol = currency === 'EUR' ? '€' : currency === 'AUD' ? 'A$' : currency === 'CNY' ? '¥' : '$';
+    const headerQty = 'Qty';
+    const headerUnit = `${symbol}/p`;
+    const headerSub = `Sub amount (${symbol})`;
     const data = cart.map((item, index) => {
       const cost = item.costItem?.cost_price || item.cost_cny || 0;
-      const calculatedPrice = item.guide_price_usd || Math.round((cost * (1 + margin)) / exchangeRate);
+      const calculatedPrice = (currency === 'USD' && item.guide_price_usd) 
+          ? item.guide_price_usd 
+          : Number(((cost * margin) / exchangeRate).toFixed(2));
       const unitPrice = item.custom_price ?? calculatedPrice;
       const subtotal = unitPrice * item.quantity;
 
       return {
         'No.': index + 1,
         'Items & Descriptions': item.custom_description || item.specs || item.name,
-        'Quantity (pc)': item.quantity,
-        'Unit price (USD/pc)': unitPrice,
-        'Sub amount (USD)': subtotal
+        [headerQty]: item.quantity,
+        [headerUnit]: unitPrice,
+        [headerSub]: subtotal
       };
     });
 
     // Add Total Row
+
     const totalAmount = cart.reduce((sum, item) => {
       const cost = item.costItem?.cost_price || item.cost_cny || 0;
-      const calculatedPrice = item.guide_price_usd || Math.round((cost * (1 + margin)) / exchangeRate);
+      const calculatedPrice = (currency === 'USD' && item.guide_price_usd) 
+          ? item.guide_price_usd 
+          : Number(((cost * margin) / exchangeRate).toFixed(2));
       const unitPrice = item.custom_price ?? calculatedPrice;
       return sum + (unitPrice * item.quantity);
     }, 0);
@@ -401,21 +438,88 @@ const QuotationPage: React.FC = () => {
     data.push({
       'No.': 'Total:',
       'Items & Descriptions': '',
-      'Quantity (pc)': totalQuantity,
-      'Unit price (USD/pc)': 0, // Placeholder
-      'Sub amount (USD)': totalAmount
+      [headerQty]: totalQuantity,
+      [headerUnit]: 0, // Placeholder
+      [headerSub]: totalAmount
     } as any);
 
-    const worksheet = XLSX.utils.json_to_sheet(data);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Quotation');
+    // Try styled export if xlsx-js-style is available; fallback to plain xlsx
+    let XLSXLib: any = XLSX;
+    try {
+      const dynImport = new Function('s', 'return import(s)');
+      const mod: any = await (dynImport as any)('xlsx-js-style');
+      XLSXLib = (mod && (mod.default ?? mod)) || XLSXLib;
+    } catch {}
+
+    const worksheet = XLSXLib.utils.json_to_sheet(data);
+
+    // Apply styles when style-capable lib is present
+    if (XLSXLib && XLSXLib.utils && XLSXLib.utils.decode_range && worksheet['!ref']) {
+      try {
+        const range = XLSXLib.utils.decode_range(worksheet['!ref']);
+        for (let R = range.s.row; R <= range.e.row; ++R) {
+          for (let C = range.s.col; C <= range.e.col; ++C) {
+            const addr = XLSXLib.utils.encode_cell({ r: R, c: C });
+            const cell = worksheet[addr];
+            if (!cell) continue;
+            cell.s = cell.s || {};
+            cell.s.font = { ...(cell.s.font || {}), name: 'DengXian' };
+            cell.s.alignment = { horizontal: 'center', vertical: 'center' };
+          }
+        }
+        // Bold header row
+        for (let C = range.s.col; C <= range.e.col; ++C) {
+          const addr = XLSXLib.utils.encode_cell({ r: range.s.row, c: C });
+          const cell = worksheet[addr];
+          if (!cell) continue;
+          cell.s = cell.s || {};
+          cell.s.font = { ...(cell.s.font || {}), name: 'DengXian', bold: true };
+          cell.s.alignment = { horizontal: 'center', vertical: 'center' };
+        }
+      } catch {}
+    }
+
+    const workbook = XLSXLib.utils.book_new();
+    XLSXLib.utils.book_append_sheet(workbook, worksheet, 'Quotation');
     
     // Generate buffer
-    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+    const excelBuffer = XLSXLib.write(workbook, { bookType: 'xlsx', type: 'array' });
     const dataBlob = new Blob([excelBuffer], { type: 'application/octet-stream' });
     
     const todayFormatted = new Date().toISOString().split('T')[0].replace(/-/g, '');
     saveAs(dataBlob, `Sinodrills Quotation ${todayFormatted}.xlsx`);
+  };
+
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
+  const [newCustomerName, setNewCustomerName] = useState('');
+  const [newCustomerContact, setNewCustomerContact] = useState('');
+  const loadCustomers = async () => {
+    const list = await databaseService.getCustomers();
+    setCustomers(list || []);
+  };
+
+  const handleSaveQuote = async () => {
+    if (!user) {
+      alert('Please login first.');
+      return;
+    }
+    const res = await databaseService.saveQuoteHistory({
+      userId: user.id,
+      customerId: selectedCustomerId || undefined,
+      customerNew: !selectedCustomerId && newCustomerName ? { name: newCustomerName, contact: newCustomerContact } : undefined,
+      cart,
+      margin,
+      exchangeRate,
+      currency,
+    });
+    if ((res as any).success) {
+      setShowSaveModal(false);
+      alert('Saved quote history.');
+    } else {
+      alert('Save failed. Please run DB migrations for quote tables.');
+    }
   };
 
   // If cart is empty, redirect or show message
@@ -430,6 +534,51 @@ const QuotationPage: React.FC = () => {
 
   return (
     <div className="max-w-md mx-auto bg-white min-h-screen relative pb-20 p-6">
+      
+      {/* Quotation Global Settings */}
+      <div className="bg-gray-50 p-4 rounded-lg mb-4 border border-gray-200 shadow-sm">
+        <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center justify-between">
+          <span>Quotation Settings</span>
+        </h3>
+        <div className="grid grid-cols-3 gap-3">
+          <div>
+            <label className="block text-gray-500 text-[10px] mb-1 uppercase tracking-wider">Margin</label>
+            <input 
+              type="number" 
+              step="0.1" 
+              value={margin} 
+              onChange={(e) => setMargin(Number(e.target.value))} 
+              className="w-full border border-gray-300 p-1.5 rounded text-sm focus:outline-blue-500 focus:border-blue-500" 
+              title="Multiplier applied to cost price (e.g. 1.2)"
+            />
+          </div>
+          <div>
+            <label className="block text-gray-500 text-[10px] mb-1 uppercase tracking-wider">Currency</label>
+            <select 
+              value={currency} 
+              onChange={(e) => setCurrency(e.target.value)} 
+              className="w-full border border-gray-300 p-1.5 rounded text-sm focus:outline-blue-500 focus:border-blue-500 bg-white"
+            >
+              <option value="USD">USD ($)</option>
+              <option value="EUR">EUR (€)</option>
+              <option value="AUD">AUD (A$)</option>
+              <option value="CNY">CNY (¥)</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-gray-500 text-[10px] mb-1 uppercase tracking-wider">Ex. Rate</label>
+            <input 
+              type="number" 
+              step="0.01" 
+              value={exchangeRate} 
+              onChange={(e) => setExchangeRate(Number(e.target.value))} 
+              className="w-full border border-gray-300 p-1.5 rounded text-sm focus:outline-blue-500 focus:border-blue-500" 
+              title="Exchange rate from CNY to selected currency"
+            />
+          </div>
+        </div>
+      </div>
+
       <DndContext 
         sensors={sensors} 
         collisionDetection={closestCenter} 
@@ -448,6 +597,7 @@ const QuotationPage: React.FC = () => {
                 navigate={navigate}
                 hoveredProduct={hoveredProduct}
                 setHoveredProduct={setHoveredProduct}
+                user={user}
               />
             ))}
           </div>
@@ -523,14 +673,16 @@ const QuotationPage: React.FC = () => {
                     {/* Items & Descriptions Sub-header */}
                     <th className="border-r border-black p-2 text-center font-normal">Rock drilling tools</th>
                     <th className="border-r border-black p-2 text-center font-normal">(pc)</th>
-                    <th className="border-r border-black p-2 text-center font-normal">(USD/pc)</th>
-                    <th className="p-2 text-center font-normal">(USD)</th>
+                    <th className="border-r border-black p-2 text-center font-normal">({currency}/pc)</th>
+                    <th className="p-2 text-center font-normal">({currency})</th>
                   </tr>
                 </thead>
                 <tbody>
                   {cart.map((item, index) => {
                      const cost = item.costItem?.cost_price || item.cost_cny || 0;
-                     const calculatedPrice = item.guide_price_usd || Math.round((cost * (1 + margin)) / exchangeRate);
+                     const calculatedPrice = (currency === 'USD' && item.guide_price_usd) 
+                         ? item.guide_price_usd 
+                         : Number(((cost * margin) / exchangeRate).toFixed(2));
                      const unitPrice = item.custom_price ?? calculatedPrice;
                      const subtotal = unitPrice * item.quantity;
 
@@ -557,7 +709,9 @@ const QuotationPage: React.FC = () => {
                     <td className="p-2 text-center">
                       {cart.reduce((sum, item) => {
                          const cost = item.costItem?.cost_price || item.cost_cny || 0;
-                         const calculatedPrice = item.guide_price_usd || Math.round((cost * (1 + margin)) / exchangeRate);
+                         const calculatedPrice = (currency === 'USD' && item.guide_price_usd) 
+                             ? item.guide_price_usd 
+                             : Number(((cost * margin) / exchangeRate).toFixed(2));
                          const unitPrice = item.custom_price ?? calculatedPrice;
                          return sum + (unitPrice * item.quantity);
                       }, 0)}
@@ -585,6 +739,12 @@ const QuotationPage: React.FC = () => {
               >
                 <Download className="w-4 h-4" />
                 Export Excel
+              </button>
+              <button
+                onClick={() => { setShowSaveModal(true); loadCustomers(); }}
+                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded shadow hover:bg-blue-700"
+              >
+                Save Quote History
               </button>
             </div>
           </div>
@@ -621,6 +781,46 @@ const QuotationPage: React.FC = () => {
 
       {/* Product Details Modal - Removed as we now navigate to separate page */}
       {/* detailsProduct && (...) */}
+      {showSaveModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setShowSaveModal(false)}>
+          <div className="bg-white p-4 rounded shadow max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
+            <div className="text-sm font-bold mb-3">Save Quote History</div>
+            <div className="space-y-2">
+              <div className="text-xs text-gray-600">To whom</div>
+              <select
+                value={selectedCustomerId}
+                onChange={(e) => setSelectedCustomerId(e.target.value)}
+                className="w-full border border-gray-300 p-2 rounded text-sm bg-white"
+              >
+                <option value="">Add new customer</option>
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              {!selectedCustomerId && (
+                <>
+                  <input
+                    placeholder="Customer name"
+                    value={newCustomerName}
+                    onChange={(e) => setNewCustomerName(e.target.value)}
+                    className="w-full border border-gray-300 p-2 rounded text-sm"
+                  />
+                  <input
+                    placeholder="Contact info"
+                    value={newCustomerContact}
+                    onChange={(e) => setNewCustomerContact(e.target.value)}
+                    className="w-full border border-gray-300 p-2 rounded text-sm"
+                  />
+                </>
+              )}
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <button onClick={() => setShowSaveModal(false)} className="px-3 py-1 text-xs border rounded">Cancel</button>
+              <button onClick={handleSaveQuote} className="px-3 py-1 text-xs bg-blue-600 text-white rounded">Save</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

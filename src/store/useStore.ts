@@ -38,8 +38,11 @@ interface AppState {
   // Quotation Settings
   margin: number;
   exchangeRate: number;
+  currency: string;
   setMargin: (margin: number) => void;
   setExchangeRate: (rate: number) => void;
+  setCurrency: (currency: string) => void;
+  recalculateCartPrices: () => void;
 
   isQuoteStarted: boolean; // Track if user has clicked "Continue" to start quote
   setQuoteStarted: (started: boolean) => void;
@@ -236,10 +239,39 @@ export const useStore = create<AppState>()(
         set({ cart: [...cart, newItem] });
       },
 
-      margin: 0.2, // Default 20%
+      margin: 1.2, // Default 1.2 multiplier
       exchangeRate: 7.0, // Default USD/CNY
-      setMargin: (margin) => set({ margin }),
-      setExchangeRate: (exchangeRate) => set({ exchangeRate }),
+      currency: 'USD', // Default currency
+      setMargin: (margin) => {
+        set({ margin });
+        get().recalculateCartPrices();
+      },
+      setExchangeRate: (exchangeRate) => {
+        set({ exchangeRate });
+        get().recalculateCartPrices();
+      },
+      setCurrency: (currency) => {
+        set({ currency });
+        get().recalculateCartPrices();
+      },
+      
+      recalculateCartPrices: () => {
+        const { cart, margin, exchangeRate, currency } = get();
+        const newCart = cart.map(item => {
+          // If it's a custom item (no cost_cny), don't recalculate its custom price
+          if (!item.cost_cny && !item.costItem?.cost_price && item.category === 'Custom') {
+            return item;
+          }
+          
+          const cost = item.costItem?.cost_price || item.cost_cny || 0;
+          const calculatedPrice = (currency === 'USD' && item.guide_price_usd) 
+              ? item.guide_price_usd 
+              : Number(((cost * margin) / exchangeRate).toFixed(2));
+              
+          return { ...item, custom_price: calculatedPrice };
+        });
+        set({ cart: newCart });
+      },
 
       isQuoteStarted: false,
       setQuoteStarted: (started) => set({ isQuoteStarted: started }),
@@ -252,12 +284,21 @@ export const useStore = create<AppState>()(
       },
     }),
     {
-      name: 'sinoquo-storage', // unique name
+      name: 'sinoquo-storage',
+      version: 2,
+      migrate: (state: any, version: number) => {
+        if (version < 2) {
+          if (state.margin === undefined || state.margin === 0.1) {
+            state.margin = 1.2;
+          }
+        }
+        return state;
+      },
       partialize: (state) => ({ 
         cart: state.cart, 
-        // isQuoteStarted: state.isQuoteStarted, // Don't persist quote started state
         margin: state.margin,
-        exchangeRate: state.exchangeRate
+        exchangeRate: state.exchangeRate,
+        currency: state.currency
       }), // only persist cart and settings
     }
   )

@@ -6,13 +6,27 @@ import { CostItem } from '../types';
 import { CartFloatingPanel } from '../components/CartFloatingPanel';
 
 import ReactMarkdown from 'react-markdown';
+import { supabase } from '../lib/supabase';
 
 const ProductDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { addToCart, selectedProduct, allProducts, cart, initializeProducts } = useStore();
+  const { addToCart, selectedProduct, allProducts, cart, initializeProducts, margin, exchangeRate, currency } = useStore();
   const [cost, setCost] = useState<CostItem | undefined>(undefined);
   const [loadingCost, setLoadingCost] = useState(false);
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   // Initialize products if not loaded (e.g. direct access or refresh)
   useEffect(() => {
@@ -63,9 +77,15 @@ const ProductDetailsPage: React.FC = () => {
   };
 
   // Determine display values
-  // If we have cost_cny directly on product (from search list), use it as fallback
   const displayCost = cost?.cost_price || product.cost_cny;
   const displayGuidePrice = product.guide_price_usd; // Assuming guide price is on product object
+  
+  // Calculate dynamic price based on store settings if not USD
+  const calculatedPrice = (currency === 'USD' && displayGuidePrice) 
+      ? displayGuidePrice 
+      : Number((((displayCost || 0) * margin) / exchangeRate).toFixed(2));
+  
+  const currencySymbol = currency === 'EUR' ? '€' : currency === 'AUD' ? 'A$' : currency === 'CNY' ? '¥' : '$';
 
   return (
     <div className="p-6 max-w-md mx-auto bg-white min-h-screen shadow-sm relative">
@@ -86,26 +106,28 @@ const ProductDetailsPage: React.FC = () => {
       </div>
 
       <div className="space-y-6 mb-8">
-        {/* Dynamic Cost Display */}
-        <div className="border-b border-gray-100 pb-4">
-          <div className="text-sm text-gray-500 mb-1">成本 CNY</div>
-          {loadingCost ? (
-            <div className="text-gray-400 text-sm">Loading...</div>
-          ) : displayCost ? (
-            <div className="text-2xl font-bold text-blue-600">
-              ¥{displayCost}
-            </div>
-          ) : (
-            <div className="text-gray-400 italic">暂无数据</div>
-          )}
-        </div>
+        {/* Dynamic Cost Display - Only show if logged in */}
+        {user && (
+          <div className="border-b border-gray-100 pb-4">
+            <div className="text-sm text-gray-500 mb-1">成本 CNY</div>
+            {loadingCost ? (
+              <div className="text-gray-400 text-sm">Loading...</div>
+            ) : displayCost ? (
+              <div className="text-2xl font-bold text-blue-600">
+                ¥{displayCost}
+              </div>
+            ) : (
+              <div className="text-gray-400 italic">暂无数据</div>
+            )}
+          </div>
+        )}
 
         {/* Dynamic Guide Price Display */}
         <div className="border-b border-gray-100 pb-4">
-          <div className="text-sm text-gray-500 mb-1">指导价 USD</div>
-          {displayGuidePrice ? (
+          <div className="text-sm text-gray-500 mb-1">参考报价 {currency}</div>
+          {calculatedPrice ? (
             <div className="text-2xl font-bold text-green-600">
-              ${displayGuidePrice}
+              {currencySymbol}{calculatedPrice}
             </div>
           ) : (
             <div className="text-gray-400 italic">暂无数据</div>

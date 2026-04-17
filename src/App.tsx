@@ -7,6 +7,8 @@ import SupplierPage from './pages/SupplierPage';
 import ManualPage from './pages/ManualPage';
 import LoginPage from './pages/LoginPage';
 import MyZonePage from './pages/MyZonePage';
+import QuoteHistoryPage from './pages/QuoteHistoryPage';
+import QuoteDetailPage from './pages/QuoteDetailPage';
 
 function App() {
   return (
@@ -18,6 +20,8 @@ function App() {
           <Route path="/my-zone" element={<MyZonePage />} />
           <Route path="/details/:id" element={<ProductDetailsPage />} />
           <Route path="/quotation" element={<QuotationPage />} />
+          <Route path="/quotes" element={<QuoteHistoryPage />} />
+          <Route path="/quotes/:id" element={<QuoteDetailPage />} />
           <Route path="/suppliers" element={<SupplierPage />} />
           <Route path="/manual" element={<ManualPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />

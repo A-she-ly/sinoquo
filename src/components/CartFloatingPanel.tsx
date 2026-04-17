@@ -3,7 +3,7 @@ import { useStore } from '../store/useStore';
 import { useNavigate } from 'react-router-dom';
 
 export const CartFloatingPanel: React.FC = () => {
-  const { cart, margin, exchangeRate } = useStore();
+  const { cart, margin, exchangeRate, currency } = useStore();
   const navigate = useNavigate();
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const isDraggingRef = useRef(false);
@@ -41,10 +41,14 @@ export const CartFloatingPanel: React.FC = () => {
   // Calculate total across all items
   const totalAmount = cart.reduce((sum, item) => {
     const cost = item.costItem?.cost_price || item.cost_cny || 0;
-    const calculatedPrice = item.guide_price_usd || Math.round((cost * (1 + margin)) / exchangeRate);
+    const calculatedPrice = (currency === 'USD' && item.guide_price_usd) 
+        ? item.guide_price_usd 
+        : Number(((cost * margin) / exchangeRate).toFixed(2));
     const unitPrice = item.custom_price ?? calculatedPrice;
     return sum + (unitPrice * item.quantity);
   }, 0);
+
+  const currencySymbol = currency === 'EUR' ? '€' : currency === 'AUD' ? 'A$' : currency === 'CNY' ? '¥' : '$';
 
   const totalQuantity = cart.reduce((sum, item) => sum + item.quantity, 0);
   const description = `${totalQuantity} items in quotation`;
@@ -60,7 +64,7 @@ export const CartFloatingPanel: React.FC = () => {
       className="fixed top-24 right-4 w-48 bg-cyan-100 p-3 rounded shadow-lg border-l-4 border-cyan-300 text-xs opacity-90 cursor-move z-50 font-sans hover:bg-cyan-200 transition-colors select-none"
     >
       <div className="mb-1 font-bold truncate">{description}</div>
-      <div>Total: ${totalAmount}</div>
+      <div>Total: {currencySymbol}{totalAmount}</div>
     </div>
   );
 };

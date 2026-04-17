@@ -31,7 +31,10 @@ const SearchPage: React.FC = () => {
     addToCart,
     initializeProducts,
     isLoading,
-    error // Get error from store
+    error,
+    margin,
+    exchangeRate,
+    currency
   } = useStore();
 
   // Pagination state
@@ -140,6 +143,14 @@ const SearchPage: React.FC = () => {
       {!isLoading && (
         <div className="space-y-4 pb-20">
           {currentItems.map((product) => {
+            const useGuideUsd = typeof product.guide_price_usd === 'number' && !Number.isNaN(product.guide_price_usd) && product.guide_price_usd > 0;
+            const calculatedPrice = useGuideUsd
+              ? Number(product.guide_price_usd.toFixed ? product.guide_price_usd.toFixed(2) : product.guide_price_usd)
+              : Number((((product.cost_cny || 0) * margin) / exchangeRate).toFixed(2));
+            const currencySymbol = useGuideUsd
+              ? '$'
+              : (currency === 'EUR' ? '€' : currency === 'AUD' ? 'A$' : currency === 'CNY' ? '¥' : '$');
+            
             return (
             <div 
               key={product.id}
@@ -159,19 +170,29 @@ const SearchPage: React.FC = () => {
                    </span>
                    
                    {/* Cost & Price Display */}
-                   {product.cost_cny && (
+                   {user && product.cost_cny && (
                      <span className="text-blue-600 font-medium">
                        ¥{product.cost_cny}
                      </span>
                    )}
-                   {product.guide_price_usd && (
+                   {calculatedPrice ? (
                      <span className="text-green-600 font-medium">
-                       ${product.guide_price_usd}
+                       {currencySymbol}{calculatedPrice}
+                     </span>
+                   ) : null}
+
+                   {/* KG/p */}
+                   {product.technical_specs && product.technical_specs['Weight (KG/p)'] && (
+                     <span className="bg-gray-100 px-1.5 py-0.5 rounded text-gray-600">
+                       KG/p: {product.technical_specs['Weight (KG/p)']}
                      </span>
                    )}
 
-                   {product.category !== 'General' && (
-                     <span className="text-gray-400">• {product.category}</span>
+                   {/* Detail */}
+                   {product.details && (
+                     <span className="bg-gray-100 px-1.5 py-0.5 rounded text-gray-600">
+                       {product.details}
+                     </span>
                    )}
                 </div>
               </div>

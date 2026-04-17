@@ -261,9 +261,14 @@ const MyZonePage: React.FC = () => {
             </button>
             <h1 className="text-lg font-bold">My Zone</h1>
           </div>
-          <button onClick={handleLogout} className="text-xs bg-blue-700 px-2 py-1 rounded hover:bg-blue-800 flex items-center gap-1">
-            <LogOut className="w-3 h-3" /> Logout
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => navigate('/quotes')} className="text-xs bg-white/10 px-2 py-1 rounded hover:bg-white/20">
+              Quotes
+            </button>
+            <button onClick={handleLogout} className="text-xs bg-blue-700 px-2 py-1 rounded hover:bg-blue-800 flex items-center gap-1">
+              <LogOut className="w-3 h-3" /> Logout
+            </button>
+          </div>
         </div>
         
         <h2 className="text-sm font-medium opacity-90 mb-2">Client Inquiry & Order History</h2>
