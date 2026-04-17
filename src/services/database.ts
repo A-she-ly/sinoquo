@@ -5,7 +5,8 @@ import { initialProducts } from './mockData';
 
 // Helper to check if Supabase is configured
 const isSupabaseConfigured = () => {
-  return import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY;
+  // Always true for now to force trying Supabase in production
+  return true;
 };
 
 export const databaseService = {
