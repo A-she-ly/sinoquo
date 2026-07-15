@@ -181,11 +181,20 @@ const SearchPage: React.FC = () => {
                      </span>
                    ) : null}
 
-                   {/* KG/p */}
-                   {product.technical_specs && product.technical_specs['Weight (KG/p)'] && (
-                     <span className="bg-gray-100 px-1.5 py-0.5 rounded text-gray-600">
-                       KG/p: {product.technical_specs['Weight (KG/p)']}
-                     </span>
+                   {/* Weight & Dimension */}
+                   {product.technical_specs && (
+                     <>
+                       {product.technical_specs['Weight (KG/p)'] && (
+                         <span className="bg-gray-100 px-1.5 py-0.5 rounded text-gray-600">
+                           KG/p: {product.technical_specs['Weight (KG/p)']}
+                         </span>
+                       )}
+                       {product.technical_specs['Dimension'] && (
+                         <span className="bg-gray-100 px-1.5 py-0.5 rounded text-gray-600">
+                           Dimension: {product.technical_specs['Dimension']}
+                         </span>
+                       )}
+                     </>
                    )}
 
                    {/* Detail */}

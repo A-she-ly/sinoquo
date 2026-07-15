@@ -403,6 +403,13 @@ const QuotationPage: React.FC = () => {
     const headerQty = 'Qty';
     const headerUnit = `${symbol}/p`;
     const headerSub = `Sub amount (${symbol})`;
+    const headerWeight = 'KG/p';
+    const headerDimension = 'Dimension';
+    const getDisplayWidth = (value: unknown) => {
+      const text = String(value ?? '');
+      return Array.from(text).reduce((width, char) => width + (/[\u0000-\u00ff]/.test(char) ? 1 : 2), 0);
+    };
+
     const data = cart.map((item, index) => {
       const cost = item.costItem?.cost_price || item.cost_cny || 0;
       const calculatedPrice = (currency === 'USD' && item.guide_price_usd) 
@@ -414,6 +421,8 @@ const QuotationPage: React.FC = () => {
       return {
         'No.': index + 1,
         'Items & Descriptions': item.custom_description || item.specs || item.name,
+        [headerWeight]: item.technical_specs?.['Weight (KG/p)'] || '',
+        [headerDimension]: item.technical_specs?.['Dimension'] || '',
         [headerQty]: item.quantity,
         [headerUnit]: unitPrice,
         [headerSub]: subtotal
@@ -438,8 +447,10 @@ const QuotationPage: React.FC = () => {
     data.push({
       'No.': 'Total:',
       'Items & Descriptions': '',
+      [headerWeight]: '',
+      [headerDimension]: '',
       [headerQty]: totalQuantity,
-      [headerUnit]: 0, // Placeholder
+      [headerUnit]: '',
       [headerSub]: totalAmount
     } as any);
 
@@ -452,6 +463,14 @@ const QuotationPage: React.FC = () => {
     } catch {}
 
     const worksheet = XLSXLib.utils.json_to_sheet(data);
+    const columns = Object.keys(data[0] || {});
+    worksheet['!cols'] = columns.map((column) => {
+      const maxWidth = data.reduce((width, row) => {
+        return Math.max(width, getDisplayWidth((row as Record<string, unknown>)[column]));
+      }, getDisplayWidth(column));
+
+      return { wch: Math.min(Math.max(maxWidth + 2, 10), 60) };
+    });
 
     // Apply styles when style-capable lib is present
     if (XLSXLib && XLSXLib.utils && XLSXLib.utils.decode_range && worksheet['!ref']) {
@@ -463,8 +482,8 @@ const QuotationPage: React.FC = () => {
             const cell = worksheet[addr];
             if (!cell) continue;
             cell.s = cell.s || {};
-            cell.s.font = { ...(cell.s.font || {}), name: 'DengXian' };
-            cell.s.alignment = { horizontal: 'center', vertical: 'center' };
+            cell.s.font = { ...(cell.s.font || {}), name: 'Times New Roman', sz: 12 };
+            cell.s.alignment = { ...(cell.s.alignment || {}), vertical: 'center' };
           }
         }
         // Bold header row
@@ -473,7 +492,7 @@ const QuotationPage: React.FC = () => {
           const cell = worksheet[addr];
           if (!cell) continue;
           cell.s = cell.s || {};
-          cell.s.font = { ...(cell.s.font || {}), name: 'DengXian', bold: true };
+          cell.s.font = { ...(cell.s.font || {}), name: 'Times New Roman', sz: 12, bold: true };
           cell.s.alignment = { horizontal: 'center', vertical: 'center' };
         }
       } catch {}

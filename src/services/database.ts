@@ -166,7 +166,8 @@ export const databaseService = {
       cost_cny: p['成本CNY'] ? Number(p['成本CNY']) : undefined,
       guide_price_usd: p['指导价USD'] ? Number(p['指导价USD']) : undefined,
       technical_specs: {
-        ...(p['KG/p'] ? { 'Weight (KG/p)': p['KG/p'] } : {})
+        ...(p['KG/p'] ? { 'Weight (KG/p)': p['KG/p'] } : {}),
+        ...(p['Dimension'] || p['dimension'] ? { 'Dimension': p['Dimension'] || p['dimension'] } : {})
       }
     }));
   },
