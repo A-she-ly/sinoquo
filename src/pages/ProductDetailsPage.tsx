@@ -151,6 +151,16 @@ const ProductDetailsPage: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* Product Tip Display */}
+        {product.Tip && (
+          <div className="border-b border-gray-100 pb-4">
+            <div className="text-sm text-gray-500 mb-1">Tip</div>
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-amber-800 text-sm whitespace-pre-wrap">
+              {product.Tip}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="flex justify-center mt-12">
